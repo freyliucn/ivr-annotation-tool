@@ -1,16 +1,24 @@
 const NVIDIA_API = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const NVIDIA_KEY = process.env.NVIDIA_API_KEY || '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';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const nvidiaKey = process.env.NVIDIA_API_KEY;
+  if (!nvidiaKey) {
+    return res.status(500).json({
+      error: {
+        message: 'NVIDIA_API_KEY is not configured in deployment environment.'
+      }
+    });
+  }
+
   try {
     const response = await fetch(NVIDIA_API, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${NVIDIA_KEY}`,
+        'Authorization': `Bearer ${nvidiaKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(req.body),

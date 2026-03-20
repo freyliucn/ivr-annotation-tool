@@ -38,6 +38,7 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
 .bubble .original{font-size:14px;line-height:1.5;min-height:20px}
 .bubble .original[dir="rtl"]{text-align:right;font-family:'Noto Sans Arabic','Noto Sans SC',sans-serif}
 .bubble .en-trans{font-size:12px;color:var(--text2);margin-top:4px;padding-top:4px;border-top:1px dashed var(--border);min-height:16px}
+.bubble .en-trans:empty::before{content:attr(data-placeholder);opacity:.8}
 .editable{outline:none;cursor:text;border-radius:4px;padding:2px 4px;transition:background .15s}
 .editable:hover{background:rgba(88,166,255,.08)}.editable:focus{background:rgba(88,166,255,.12)}
 .search-wrap{position:relative}.search-drop{position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:6px;z-index:50;margin-top:2px}
@@ -155,24 +156,24 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
 
     <!-- CONVERSATION -->
     <div style="flex:1;overflow-y:auto;padding:16px">
-      <div v-for="(msg,idx) in selected.conversation" :key="idx" style="display:flex;margin-bottom:12px"
+      <div v-for="(msg,idx) in selected.conversation" :key="msg._mid || idx" style="display:flex;margin-bottom:12px"
         :style="{justifyContent:msg.role==='user'?'flex-start':'flex-end'}">
         <div :class="'bubble bubble-'+(msg.role==='user'?'user':'agent')" style="position:relative">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
             <span style="font-size:11px;font-weight:600;color:var(--text2)">{{msg.role==='user'?'👤 Customer':'🤖 Agent'}}</span>
             <div style="flex:1"></div>
-            <button class="btn-ghost btn-sm" @click="translateMsg(idx)" :disabled="translating[idx]" title="Translate to translation target">
-              <span v-if="translating[idx]" class="spinner"></span><span v-else>🔄 Translate</span>
+            <button class="btn-ghost btn-sm" @click="translateMsg(idx)" :disabled="translating[msgRuntimeKey(idx)]" title="Translate to translation target">
+              <span v-if="translating[msgRuntimeKey(idx)]" class="spinner"></span><span v-else>🔄 Translate</span>
             </button>
-            <button v-if="getTranslation(idx)" class="btn-ghost btn-sm" @click="regenerateMsg(idx)" :disabled="regenerating[idx]" title="Regenerate original from translation">
-              <span v-if="regenerating[idx]" class="spinner"></span><span v-else>🔄 Regenerate</span>
+            <button v-if="getTranslation(idx)" class="btn-ghost btn-sm" @click="regenerateMsg(idx)" :disabled="regenerating[msgRuntimeKey(idx)]" title="Regenerate original from translation">
+              <span v-if="regenerating[msgRuntimeKey(idx)]" class="spinner"></span><span v-else>🔄 Regenerate</span>
             </button>
             <button class="btn-ghost btn-sm" style="color:var(--red)" @click="removeMsg(idx)" title="Delete message">🗑️</button>
           </div>
           <div class="original editable" contenteditable="true" :dir="isArabic(msg.content)?'rtl':'ltr'"
             @blur="msg.content=$event.target.innerText" v-text="msg.content"></div>
-          <div class="en-trans editable" contenteditable="true" @blur="setTranslation(idx,$event.target.innerText)"
-            v-text="getTranslation(idx)||'(Click Translate to generate)'"></div>
+          <div class="en-trans editable" contenteditable="true" data-placeholder="(Click Translate to generate)"
+            @blur="onTranslationBlur(idx,$event.target.innerText)" v-text="getTranslation(idx)"></div>
         </div>
       </div>
       <div style="text-align:center;margin-top:8px">
@@ -325,8 +326,34 @@ setup(){
   const translating = reactive({});
   const regenerating = reactive({});
 
+  function createMsgId(){
+    return `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
+  }
+
+  function ensureMsgIds(tc){
+    if(!tc || !Array.isArray(tc.conversation)) return;
+    tc.conversation.forEach(msg=>{
+      if(!msg._mid) msg._mid = createMsgId();
+    });
+  }
+
+  function ensureAllMsgIds(cases){
+    if(!Array.isArray(cases)) return;
+    cases.forEach(ensureMsgIds);
+  }
+
+  function findMsgIndexById(tc,mid){
+    if(!tc || !Array.isArray(tc.conversation) || !mid) return -1;
+    return tc.conversation.findIndex(msg=>msg._mid===mid);
+  }
+
+  function msgRuntimeKey(idx,tc=selected.value){
+    const mid = tc?.conversation?.[idx]?._mid;
+    return mid ? `${tc.test_id}__${mid}` : `${tc?.test_id||'unknown'}__idx_${idx}`;
+  }
+
   const settings = reactive({
-    apiBase: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    apiBase: '/api/chat',
     apiKey: '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',
     model: 'qwen/qwen3.5-122b-a10b',
     batchSize: 3
@@ -337,10 +364,15 @@ setup(){
     try{
       const s = localStorage.getItem('ivr_annotation_settings');
       if(s) Object.assign(settings, JSON.parse(s));
+      // Migrate older direct-endpoint default to proxy-first default for better reliability.
+      if(isLegacyDirectNvidiaApi(settings.apiBase)){
+        settings.apiBase='/api/chat';
+      }
       const d = localStorage.getItem('ivr_annotation_data');
       if(d) testCases.value = JSON.parse(d);
       const t = localStorage.getItem('ivr_translations');
       if(t) Object.assign(translations, JSON.parse(t));
+      ensureAllMsgIds(testCases.value);
     }catch(e){console.error(e)}
     document.addEventListener('click',e=>{
       if(!e.target.closest('.search-wrap')) branchDropOpen.value=false;
@@ -433,27 +465,106 @@ setup(){
   })}
   function pickBranch(code){selectedParams.value.branch_id=code;branchSearch.value='';branchDropOpen.value=false}
 
-  function msgKey(tc,idx){return `${tc.test_id}__${idx}`}
+  function msgKey(tc,idx){
+    const mid = tc?.conversation?.[idx]?._mid;
+    if(mid) return `${tc.test_id}__${mid}`;
+    return `${tc.test_id}__idx_${idx}`;
+  }
   function getTranslation(idx,tc=selected.value){if(!tc)return'';return translations[msgKey(tc,idx)]||''}
-  function setTranslation(idx,text,tc=selected.value){if(!tc)return;translations[msgKey(tc,idx)]=text;localStorage.setItem('ivr_translations',JSON.stringify(translations))}
+  function getTranslationByMsgId(tc,mid){
+    if(!tc || !mid) return '';
+    return translations[`${tc.test_id}__${mid}`]||'';
+  }
+  function setTranslationByMsgId(tc,mid,text){
+    if(!tc || !mid) return;
+    const key = `${tc.test_id}__${mid}`;
+    const normalized = (text||'').trim();
+    if(normalized){
+      translations[key] = normalized;
+    }else{
+      delete translations[key];
+    }
+    localStorage.setItem('ivr_translations',JSON.stringify(translations));
+  }
+  function setTranslation(idx,text,tc=selected.value){
+    if(!tc || !tc.conversation?.[idx]) return;
+    const mid = tc.conversation[idx]._mid;
+    if(mid){
+      setTranslationByMsgId(tc,mid,text);
+      return;
+    }
+    const key = msgKey(tc,idx);
+    const normalized = (text||'').trim();
+    if(normalized) translations[key]=normalized;
+    else delete translations[key];
+    localStorage.setItem('ivr_translations',JSON.stringify(translations));
+  }
+  function onTranslationBlur(idx,text,tc=selected.value){
+    if(!tc || !tc.conversation?.[idx]) return;
+    const current = getTranslation(idx,tc);
+    const normalized = (text||'').trim();
+    if(normalized===current) return;
+    setTranslation(idx,normalized,tc);
+  }
 
   function showToast(msg,type='ok'){toast.value={msg,type};setTimeout(()=>toast.value=null,3000)}
 
+  function isProxyApi(url){
+    const normalized = String(url||'').trim();
+    return normalized==='/api/chat' || normalized.endsWith('/api/chat');
+  }
+
+  function isLegacyDirectNvidiaApi(url){
+    const normalized = String(url||'').trim().replace(/\/+$/,'');
+    return normalized==='https://integrate.api.nvidia.com/v1/chat/completions';
+  }
+
   async function callLLM(systemPrompt, userMsg){
-    if(!settings.apiKey){showToast('Please configure API Key in settings','err');return null}
+    const targetApi = String(settings.apiBase||'').trim();
+    if(!targetApi){showToast('Please configure API Base URL in settings','err');return null}
+    const usingProxy = isProxyApi(targetApi);
+    if(!usingProxy && !settings.apiKey){showToast('Please configure API Key in settings','err');return null}
+    const headers = {'Content-Type':'application/json'};
+    if(settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
     try{
-      const r = await fetch(settings.apiBase,{
+      const r = await fetch(targetApi,{
         method:'POST',
-        headers:{'Authorization':`Bearer ${settings.apiKey}`,'Content-Type':'application/json'},
+        headers,
         body:JSON.stringify({model:settings.model,messages:[{role:'system',content:systemPrompt},{role:'user',content:userMsg}],max_tokens:500})
       });
-      const d = await r.json();
+      const raw = await r.text();
+      let d = null;
+      try{
+        d = raw ? JSON.parse(raw) : {};
+      }catch(_jsonErr){
+        const hint = usingProxy
+          ? `Proxy returned non-JSON response (${targetApi}). Local: restart ./start.sh. Vercel: check /api/chat deployment logs.`
+          : 'Direct API returned non-JSON response. Please verify API Base URL.';
+        showToast(hint,'err');
+        return null;
+      }
+      if(!r.ok){
+        if(d?.error?.message){
+          showToast(d.error.message,'err');
+        }else{
+          showToast(`API request failed (${r.status})`,'err');
+        }
+        return null;
+      }
       if(d.error){showToast(d.error.message||'API Error','err');return null}
       let text = d.choices?.[0]?.message?.content?.trim()||null;
       // Strip <think>...</think> blocks from reasoning models
       if(text) text = text.replace(/<think>[\s\S]*?<\/think>/g,'').trim();
       return text;
-    }catch(e){showToast('Network error: '+e.message,'err');return null}
+    }catch(e){
+      const msg = String(e?.message||'');
+      if(usingProxy){
+        showToast(`Cannot reach proxy endpoint (${targetApi}). Local: run ./start.sh. Vercel: verify /api/chat and NVIDIA_API_KEY.`, 'err');
+      }else{
+        showToast(`Network/CORS error calling direct API (${targetApi}). Consider using /api/chat proxy. ${msg}`,'err');
+      }
+      return null;
+    }
   }
 
   async function translateAll(){
@@ -486,15 +597,22 @@ setup(){
 
   async function translateMsg(idx,tc=selected.value){
     if(!tc || !tc.conversation?.[idx])return false;
-    translating[idx]=true;
+    const mid = tc.conversation[idx]._mid;
+    const runtimeKey = mid ? `${tc.test_id}__${mid}` : msgRuntimeKey(idx,tc);
+    translating[runtimeKey]=true;
     const text = tc.conversation[idx].content;
     const result = await callLLM(
       'Translate the following text. If it is Arabic, translate to English. If it is English, translate to Chinese. Only output the translation, without any explanations or extra words.',
       text
     );
-    translating[idx]=false;
+    translating[runtimeKey]=false;
     if(result) {
-      setTranslation(idx,result,tc);
+      if(mid){
+        if(findMsgIndexById(tc,mid)===-1) return false;
+        setTranslationByMsgId(tc,mid,result);
+      }else{
+        setTranslation(idx,result,tc);
+      }
       return true;
     }
     return false;
@@ -502,23 +620,35 @@ setup(){
 
   async function regenerateMsg(idx,tc=selected.value){
     if(!tc || !tc.conversation?.[idx])return;
-    regenerating[idx]=true;
-    const zhText = getTranslation(idx,tc);
+    const mid = tc.conversation[idx]._mid;
+    const runtimeKey = mid ? `${tc.test_id}__${mid}` : msgRuntimeKey(idx,tc);
+    regenerating[runtimeKey]=true;
+    const zhText = mid ? getTranslationByMsgId(tc,mid) : getTranslation(idx,tc);
+    if(!zhText){
+      regenerating[runtimeKey]=false;
+      showToast('No translation available for regeneration','err');
+      return;
+    }
     const lang = tc.context?.language || tc.expected_behavior?.parameters?.language || 'English';
     const result = await callLLM(
       `Based on the following description, generate a natural spoken expression in ${lang==='Arabic'?'Arabic':'English'} simulating a bank customer on an IVR call. Output only the generated ${lang==='Arabic'?'Arabic':'English'} text without explanations.`,
       zhText
     );
-    if(result && tc.conversation?.[idx]){
-      tc.conversation[idx].content = result;
+    if(result){
+      if(mid){
+        const liveIdx = findMsgIndexById(tc,mid);
+        if(liveIdx!==-1) tc.conversation[liveIdx].content = result;
+      }else{
+        if(tc.conversation?.[idx]) tc.conversation[idx].content = result;
+      }
       showToast('Original text regenerated');
     }
-    regenerating[idx]=false;
+    regenerating[runtimeKey]=false;
   }
 
   function addMsg(role){
     if(!selected.value)return;
-    selected.value.conversation.push({role,content:''});
+    selected.value.conversation.push({role,content:'',_mid:createMsgId()});
     nextTick(()=>{
       const bubbles=document.querySelectorAll('.bubble .original');
       if(bubbles.length) bubbles[bubbles.length-1].focus();
@@ -526,6 +656,12 @@ setup(){
   }
   function removeMsg(idx){
     if(!selected.value||selected.value.conversation.length<=1)return;
+    const runtimeKey = msgRuntimeKey(idx,selected.value);
+    const key = msgKey(selected.value,idx);
+    delete translations[key];
+    delete translating[runtimeKey];
+    delete regenerating[runtimeKey];
+    localStorage.setItem('ivr_translations',JSON.stringify(translations));
     selected.value.conversation.splice(idx,1);
   }
 
@@ -562,7 +698,7 @@ setup(){
     const tc = {
       test_id:id, category:'HappyPath', description:'',
       context:{language:'English',simulated_asr_confidence:0.95},
-      conversation:[{role:'user',content:''}],
+      conversation:[{role:'user',content:'',_mid:createMsgId()}],
       expected_behavior:{action:'call_tool:transfer_call',parameters:{language:'English',branch_id:'0',intent_id:'0'}},
       eval_metrics:{must_trigger_action:'call_tool:transfer_call',exact_match_params:['language','branch_id','intent_id']}
     };
@@ -598,6 +734,7 @@ setup(){
     reader.onload = ev=>{
       try{
         const cases = parseImportedCases(ev.target.result);
+        ensureAllMsgIds(cases);
         // Clear stale translations to prevent cross-contamination
         Object.keys(translations).forEach(k => delete translations[k]);
         localStorage.removeItem('ivr_translations');
@@ -615,13 +752,13 @@ setup(){
   }
 
   function exportJsonl(){
-    const content = testCases.value.map(tc=>JSON.stringify(tc)).join('\n');
+    const content = testCases.value.map(tc=>JSON.stringify(exportCase(tc))).join('\n');
     downloadFile(content,'agent_regression_tests.jsonl','application/json');
     showToast(`Exported ${testCases.value.length} cases`);
   }
 
   async function exportJson(){
-    const content = JSON.stringify(testCases.value, null, 2);
+    const content = JSON.stringify(testCases.value.map(exportCase), null, 2);
     try {
       if (window.showSaveFilePicker) {
         const handle = await window.showSaveFilePicker({
@@ -651,8 +788,8 @@ setup(){
     md += `> Total ${testCases.value.length} cases, Generated at: ${new Date().toLocaleString()}\n\n---\n\n`;
     for(const [cat,cases] of Object.entries(grouped)){
       md += `## ${cat}\n\n`;
-      for(const tc of cases){
-        const p = tc.expected_behavior?.parameters||{};
+        for(const tc of cases){
+          const p = tc.expected_behavior?.parameters||{};
         const bInfo = BRANCHES[p.branch_id];
         const bLabel = bInfo ? `${p.branch_id} (${bInfo.en} / ${bInfo.ar})` : (p.branch_id||'N/A');
         const iLabel = INTENTS[p.intent_id] || p.intent_id || 'N/A';
@@ -660,14 +797,14 @@ setup(){
         if(tc.expected_behavior?.action==='call_tool:transfer_call'){
           md += `**Language**: ${p.language||'?'} | **Branch**: ${bLabel} | **Intent**: ${p.intent_id} (${iLabel})\n\n`;
         }
-        for(const msg of tc.conversation){
-          const icon = msg.role==='user'?'👤 Customer':'🤖 Agent';
-          md += `> ${icon}: ${msg.content}\n`;
-          const key = msgKey(tc, tc.conversation.indexOf(msg));
-          const zh = translations[key];
-          if(zh) md += `> (Translation: ${zh})\n`;
-          md += `\n`;
-        }
+          tc.conversation.forEach((msg,idx)=>{
+            const icon = msg.role==='user'?'👤 Customer':'🤖 Agent';
+            md += `> ${icon}: ${msg.content}\n`;
+            const key = msgKey(tc, idx);
+            const zh = translations[key];
+            if(zh) md += `> (Translation: ${zh})\n`;
+            md += `\n`;
+          });
         if(tc.expected_behavior?.action==='call_tool:transfer_call'){
           md += `✅ Expected: \`transfer_call(language="${p.language}", branch_id="${p.branch_id}", intent_id="${p.intent_id}")\`\n\n`;
         } else {
@@ -693,6 +830,16 @@ setup(){
     showToast('Settings saved');
   }
 
+  function exportCase(tc){
+    return {
+      ...tc,
+      conversation: (tc.conversation||[]).map(msg=>({
+        role: msg.role,
+        content: msg.content
+      }))
+    };
+  }
+
   return {
     isAuthenticated,passwordInput,passwordError,login,
     testCases,selected,searchQ,filterCat,filterLang,branchSearch,branchDropOpen,listRef,
@@ -700,7 +847,7 @@ setup(){
     selectedParams,filteredCases,filteredBranches,coveredBranches,
     BRANCHES,INTENTS,CATEGORIES,
     catClass,branchLabel,isArabic,catCount,intentCount,langCount,caseLanguage,
-    selectCase,scrollToItem,pickBranch,getTranslation,setTranslation,
+    selectCase,scrollToItem,pickBranch,msgRuntimeKey,getTranslation,setTranslation,onTranslationBlur,
     translateMsg,regenerateMsg,translateAll,addMsg,removeMsg,
     saveCase,deleteCase,newCase,importFile,exportJsonl,exportJson,exportMarkdown,saveSettings,showToast
   };

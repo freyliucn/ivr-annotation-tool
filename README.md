@@ -55,11 +55,28 @@ python3 -m http.server 8080
 
 | 配置项 | 默认值 |
 |--------|--------|
-| API Base | `https://integrate.api.nvidia.com/v1/chat/completions` |
+| API Base | `/api/chat`（推荐） |
 | Model | `qwen/qwen3.5-122b-a10b` |
-| API Key | 已内置 NVIDIA NIM key |
+| API Key | 直连模式需要；代理模式可留空 |
 
 支持切换到其他 OpenAI 兼容 API（如 OpenRouter、DashScope），在设置面板修改即可。
+
+### 网络排障（翻译出现 Network error）
+
+优先使用代理模式（`API Base = /api/chat`）：
+
+1. **本地运行**
+   - 启动：`./start.sh`
+   - 若提示 `Cannot reach proxy endpoint (/api/chat)`，说明本地服务未启动或已退出，重启 `./start.sh` 即可。
+
+2. **Vercel 部署**
+   - 确认已部署 `api/chat.js`
+   - 确认项目环境变量里有 `NVIDIA_API_KEY`（并触发了重新部署）
+   - 若提示 proxy non-JSON 或 5xx，请查看 Vercel Function 日志
+
+3. **不推荐直连上游**
+   - 直连 `https://integrate.api.nvidia.com/v1/chat/completions` 可能受浏览器 CORS 限制
+   - 建议统一走 `/api/chat` 代理，避免前端网络/CORS不确定性
 
 ## 数据格式
 
