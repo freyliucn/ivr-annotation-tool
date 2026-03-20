@@ -201,7 +201,8 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
     <h3 style="margin-bottom:16px">⚙️ Settings</h3>
     <div style="margin-bottom:12px">
       <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">API Base URL</label>
-      <input v-model="settings.apiBase" style="width:100%" placeholder="https://integrate.api.nvidia.com/v1/chat/completions">
+      <input v-model="settings.apiBase" style="width:100%" placeholder="/api/chat or https://integrate.api.nvidia.com/v1/chat/completions">
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">Proxy: /api/chat (no CORS) | Direct: full URL (needs API Key)</div>
     </div>
     <div style="margin-bottom:12px">
       <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">API Key</label>

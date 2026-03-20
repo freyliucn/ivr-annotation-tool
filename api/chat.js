@@ -1,28 +1,24 @@
+const NVIDIA_API = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const NVIDIA_KEY = process.env.NVIDIA_API_KEY || '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';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: { message: 'Method Not Allowed' } });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
-
-  const apiKey = process.env.NVIDIA_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: { message: '服务端未配置 NVIDIA_API_KEY 环境变量，请在 Vercel 中设置。' } });
-  }
-
-  const { model, messages, max_tokens } = req.body;
 
   try {
-    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    const response = await fetch(NVIDIA_API, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${NVIDIA_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model, messages, max_tokens })
+      body: JSON.stringify(req.body),
     });
 
     const data = await response.json();
-    return res.status(response.status).json(data);
-  } catch (error) {
-    return res.status(500).json({ error: { message: error.message } });
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
   }
 }
