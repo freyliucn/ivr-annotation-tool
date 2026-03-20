@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riyadh Bank IVR 测试标注平台</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Sans+Arabic:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--text2:#8b949e;--cyan:#58a6ff;--green:#3fb950;--blue:#388bfd;--orange:#d29922;--red:#f85149;--purple:#bc8cff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans SC','Noto Sans Arabic',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+input,select,textarea{font-family:inherit;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan)}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:500;transition:all .15s}
+.btn-primary{background:var(--cyan);color:#000}.btn-primary:hover{opacity:.85}
+.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{opacity:.85}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn-sm{padding:3px 8px;font-size:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-hp{background:#1a3a1a;color:var(--green)}.badge-ms{background:#1a2a3a;color:var(--blue)}
+.badge-am{background:#2a2a1a;color:var(--orange)}.badge-nf{background:#2a1a2a;color:var(--purple)}
+.badge-nc{background:#1a2a2a;color:#56d4dd}.badge-ap{background:#2a1a1a;color:var(--red)}
+.action-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:4px;font-size:12px;font-family:'JetBrains Mono',monospace}
+.action-tool{background:#0d2818;color:var(--green);border:1px solid #1a3a1a}
+.action-text{background:#0d1a2a;color:var(--blue);border:1px solid #1a2a3a}
+.action-dtmf{background:#1a1a0d;color:var(--orange);border:1px solid #2a2a1a}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:800px;width:90%;max-height:85vh;overflow-y:auto}
+.toast{position:fixed;top:16px;right:16px;z-index:200;padding:10px 18px;border-radius:8px;font-size:13px;animation:slideIn .3s}
+.toast-ok{background:#0d2818;color:var(--green);border:1px solid #1a3a1a}
+.toast-err{background:#2a0d0d;color:var(--red);border:1px solid #2a1a1a}
+@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+.bubble{max-width:85%;padding:10px 14px;border-radius:12px;margin:6px 0;position:relative}
+.bubble-user{background:#1a2233;border:1px solid #253040;margin-right:auto;border-bottom-left-radius:4px}
+.bubble-agent{background:#1a1a2a;border:1px solid #252540;margin-left:auto;border-bottom-right-radius:4px}
+.bubble .original{font-size:14px;line-height:1.5;min-height:20px}
+.bubble .original[dir="rtl"]{text-align:right;font-family:'Noto Sans Arabic','Noto Sans SC',sans-serif}
+.bubble .zh-trans{font-size:12px;color:var(--text2);margin-top:4px;padding-top:4px;border-top:1px dashed var(--border);min-height:16px}
+.editable{outline:none;cursor:text;border-radius:4px;padding:2px 4px;transition:background .15s}
+.editable:hover{background:rgba(88,166,255,.08)}.editable:focus{background:rgba(88,166,255,.12)}
+.search-wrap{position:relative}.search-drop{position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:6px;z-index:50;margin-top:2px}
+.search-drop-item{padding:6px 10px;font-size:13px;cursor:pointer}.search-drop-item:hover{background:rgba(88,166,255,.12)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+<!-- HEADER -->
+<header style="background:var(--card);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+  <div style="font-size:16px;font-weight:700;color:var(--cyan)">🏦 Riyadh Bank IVR 测试标注平台</div>
+  <div style="flex:1"></div>
+  <span style="font-size:12px;color:var(--text2)">{{testCases.length}} 条用例</span>
+  <button class="btn-ghost btn-sm" @click="showCoverage=true">📊 覆盖率</button>
+  <button class="btn-ghost btn-sm" @click="showSettings=true">⚙️ 设置</button>
+</header>
+
+<div style="display:flex;flex:1;overflow:hidden">
+<!-- LEFT SIDEBAR -->
+<div style="width:320px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;min-height:0">
+  <div style="padding:8px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+    <input v-model="searchQ" placeholder="🔍 搜索 test_id / 对话内容..." style="width:100%">
+    <div style="display:flex;gap:4px">
+      <select v-model="filterCat" style="flex:1"><option value="">全部分类</option><option v-for="c in CATEGORIES" :value="c">{{c}}</option></select>
+      <select v-model="filterLang" style="width:80px"><option value="">语言</option><option value="English">EN</option><option value="Arabic">AR</option></select>
+    </div>
+    <div style="font-size:11px;color:var(--text2)">显示 {{filteredCases.length}} / {{testCases.length}} 条</div>
+  </div>
+  <div ref="listRef" style="flex:1;overflow-y:scroll;min-height:0">
+    <div v-for="tc in filteredCases" :key="tc.test_id" :data-tid="tc.test_id" @click="selectCase(tc)"
+      :style="{padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',background:selected?.test_id===tc.test_id?'rgba(88,166,255,.1)':'transparent'}"
+      @mouseenter="$event.target.style.background=selected?.test_id===tc.test_id?'rgba(88,166,255,.1)':'rgba(255,255,255,.03)'"
+      @mouseleave="$event.target.style.background=selected?.test_id===tc.test_id?'rgba(88,166,255,.1)':'transparent'">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-family:'JetBrains Mono';font-size:12px;color:var(--cyan)">{{tc.test_id}}</span>
+        <span :class="'badge badge-'+catClass(tc.category)">{{tc.category}}</span>
+        <span style="font-size:13px">{{caseLanguage(tc)==='Arabic'?'🇸🇦':'🇬🇧'}}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{tc.description}}</div>
+    </div>
+    <div v-if="filteredCases.length===0" style="padding:24px;text-align:center;color:var(--text2)">
+      <div style="font-size:32px;margin-bottom:8px">📋</div>
+      <div>暂无用例</div>
+      <div style="font-size:12px;margin-top:4px">点击下方「导入 JSONL」加载数据</div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN PANEL -->
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+  <div v-if="!selected" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text2)">
+    <div style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">💬</div>
+      <div style="font-size:16px">选择一个测试用例查看</div>
+      <div style="font-size:13px;margin-top:4px">或导入 JSONL 文件开始标注</div>
+    </div>
+  </div>
+  <template v-if="selected">
+    <!-- CASE HEADER -->
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--card)">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <input v-model="selected.test_id" style="width:130px;font-family:'JetBrains Mono';font-weight:600">
+        <select v-model="selected.category">
+          <option v-for="c in CATEGORIES" :value="c">{{c}}</option>
+        </select>
+        <input v-model="selected.description" style="flex:1;min-width:200px" placeholder="描述...">
+        <button class="btn-primary btn-sm" @click="saveCase">💾 保存</button>
+        <button class="btn-danger btn-sm" @click="deleteCase">🗑️ 删除</button>
+        <button class="btn-ghost btn-sm" @click="translateAll" title="翻译所有未翻译的对话">🔄 翻译全篇</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--text2)">期望行为:</span>
+        <select v-model="selected.expected_behavior.action" style="font-size:12px">
+          <option value="call_tool:transfer_call">call_tool:transfer_call</option>
+          <option value="reply_text">reply_text</option>
+          <option value="fallback_dtmf">fallback_dtmf</option>
+          <option value="reply_text:ask_clarification_or_dtmf">reply_text:ask_clarification_or_dtmf</option>
+        </select>
+        <template v-if="selected.expected_behavior.action==='call_tool:transfer_call'">
+          <select v-model="selectedParams.language" style="width:90px;font-size:12px">
+            <option value="English">English</option><option value="Arabic">Arabic</option>
+          </select>
+          <div class="search-wrap" style="width:240px">
+            <input v-model="branchSearch" @focus="branchDropOpen=true" @input="branchDropOpen=true"
+              :placeholder="selectedParams.branch_id?branchLabel(selectedParams.branch_id):'搜索分行...'" style="width:100%;font-size:12px">
+            <div v-if="branchDropOpen" class="search-drop">
+              <div v-for="b in filteredBranches" :key="b.code" class="search-drop-item" @mousedown.prevent="pickBranch(b.code)">
+                <span style="font-family:'JetBrains Mono';color:var(--cyan)">{{b.code}}</span>
+                {{b.en}} <span style="color:var(--text2)">{{b.ar}}</span>
+              </div>
+            </div>
+          </div>
+          <select v-model="selectedParams.intent_id" style="width:180px;font-size:12px">
+            <option v-for="(name,id) in INTENTS" :key="id" :value="id">{{id}}: {{name}}</option>
+          </select>
+        </template>
+        <span v-if="selected.expected_behavior.action==='call_tool:transfer_call'" class="action-tag action-tool">
+          ✅ transfer({{selectedParams.language}}, {{selectedParams.branch_id}}, {{selectedParams.intent_id}})
+        </span>
+        <span v-else-if="selected.expected_behavior.action?.includes('reply_text')" class="action-tag action-text">💬 reply_text</span>
+        <span v-else class="action-tag action-dtmf">⌨️ fallback_dtmf</span>
+      </div>
+    </div>
+
+    <!-- CONVERSATION -->
+    <div style="flex:1;overflow-y:auto;padding:16px">
+      <div v-for="(msg,idx) in selected.conversation" :key="idx" style="display:flex;margin-bottom:12px"
+        :style="{justifyContent:msg.role==='user'?'flex-start':'flex-end'}">
+        <div :class="'bubble bubble-'+(msg.role==='user'?'user':'agent')" style="position:relative">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:11px;font-weight:600;color:var(--text2)">{{msg.role==='user'?'👤 Customer':'🤖 Agent'}}</span>
+            <div style="flex:1"></div>
+            <button class="btn-ghost btn-sm" @click="translateMsg(idx)" :disabled="translating[idx]" title="翻译为中文">
+              <span v-if="translating[idx]" class="spinner"></span><span v-else>🔄 翻译</span>
+            </button>
+            <button v-if="getTranslation(idx)" class="btn-ghost btn-sm" @click="regenerateMsg(idx)" :disabled="regenerating[idx]" title="从中文重新生成原文">
+              <span v-if="regenerating[idx]" class="spinner"></span><span v-else>🔄 重生成</span>
+            </button>
+            <button class="btn-ghost btn-sm" style="color:var(--red)" @click="removeMsg(idx)" title="删除消息">🗑️</button>
+          </div>
+          <div class="original editable" contenteditable="true" :dir="isArabic(msg.content)?'rtl':'ltr'"
+            @blur="msg.content=$event.target.innerText" v-text="msg.content"></div>
+          <div class="zh-trans editable" contenteditable="true" @blur="setTranslation(idx,$event.target.innerText)"
+            v-text="getTranslation(idx)||'（点击「翻译」生成中文）'"></div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:8px">
+        <button class="btn-ghost" @click="addMsg('user')">➕ 添加 Customer 消息</button>
+        <button class="btn-ghost" style="margin-left:8px" @click="addMsg('agent')">➕ 添加 Agent 消息</button>
+      </div>
+    </div>
+  </template>
+</div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div style="background:var(--card);border-top:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0">
+  <button class="btn-ghost" @click="$refs.fileInput.click()">📥 导入 JSONL</button>
+  <input ref="fileInput" type="file" accept=".jsonl,.json" style="display:none" @change="importFile">
+  <button class="btn-ghost" @click="exportJsonl">📤 导出 JSONL</button>
+  <button class="btn-ghost" @click="exportJson" title="选择文件夹保存为 JSON">📤 导出 JSON</button>
+  <button class="btn-ghost" @click="exportMarkdown">📤 导出 Markdown</button>
+  <div style="flex:1"></div>
+  <button class="btn-primary" @click="newCase">➕ 新建用例</button>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div v-if="showSettings" class="modal-overlay" @click.self="showSettings=false">
+  <div class="modal" style="max-width:480px">
+    <h3 style="margin-bottom:16px">⚙️ 设置</h3>
+    <div style="margin-bottom:12px">
+      <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">翻译模型</label>
+      <input v-model="settings.model" style="width:100%" placeholder="qwen/qwen3.5-122b-a10b">
+    </div>
+    <div style="margin-bottom:4px;font-size:11px;color:var(--text2)">默认使用 NVIDIA NIM 免费 Qwen3.5 模型</div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">批量翻译并发数</label>
+      <input v-model.number="settings.batchSize" type="number" style="width:80px" min="1" max="10">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-ghost" @click="showSettings=false">取消</button>
+      <button class="btn-primary" @click="saveSettings">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- COVERAGE MODAL -->
+<div v-if="showCoverage" class="modal-overlay" @click.self="showCoverage=false">
+  <div class="modal">
+    <h3 style="margin-bottom:16px">📊 覆盖率仪表板</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Branch coverage -->
+      <div style="grid-column:1/3">
+        <h4 style="color:var(--cyan);margin-bottom:8px">🏢 分行覆盖 — {{coveredBranches.size}} / {{Object.keys(BRANCHES).length}}</h4>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-bottom:8px">
+          <div :style="{width:(coveredBranches.size/Object.keys(BRANCHES).length*100)+'%',height:'100%',background:coveredBranches.size/Object.keys(BRANCHES).length>.8?'var(--green)':'var(--orange)',borderRadius:'4px',transition:'width .3s'}"></div>
+        </div>
+        <details>
+          <summary style="cursor:pointer;font-size:12px;color:var(--text2)">未覆盖的分行 ({{Object.keys(BRANCHES).length - coveredBranches.size}} 个)</summary>
+          <div style="max-height:150px;overflow-y:auto;margin-top:8px;font-size:12px;columns:3;column-gap:12px">
+            <div v-for="(info,code) in BRANCHES" :key="code" v-if="!coveredBranches.has(code)" style="margin-bottom:2px">
+              <span style="font-family:'JetBrains Mono';color:var(--cyan)">{{code}}</span> {{info.en||info.ar}}
+            </div>
+          </div>
+        </details>
+      </div>
+      <!-- Category dist -->
+      <div>
+        <h4 style="color:var(--cyan);margin-bottom:8px">📂 分类分布</h4>
+        <div v-for="c in CATEGORIES" :key="c" style="margin-bottom:4px;font-size:12px">
+          <div style="display:flex;justify-content:space-between"><span>{{c}}</span><span>{{catCount(c)}}</span></div>
+          <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:2px">
+            <div :style="{width:(catCount(c)/Math.max(testCases.length,1)*100)+'%',height:'100%',background:'var(--cyan)',borderRadius:'3px'}"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Intent dist -->
+      <div>
+        <h4 style="color:var(--cyan);margin-bottom:8px">🎯 意图分布</h4>
+        <div v-for="(name,id) in INTENTS" :key="id" style="margin-bottom:4px;font-size:12px">
+          <div style="display:flex;justify-content:space-between"><span>{{id}}: {{name}}</span><span>{{intentCount(id)}}</span></div>
+          <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:2px">
+            <div :style="{width:(intentCount(id)/Math.max(testCases.length,1)*100)+'%',height:'100%',background:'var(--green)',borderRadius:'3px'}"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Language -->
+      <div style="grid-column:1/3">
+        <h4 style="color:var(--cyan);margin-bottom:8px">🌐 语言分布</h4>
+        <div style="display:flex;gap:24px;font-size:13px">
+          <span>🇬🇧 English: {{langCount('English')}}</span>
+          <span>🇸🇦 Arabic: {{langCount('Arabic')}}</span>
+          <span style="color:var(--text2)">未标注: {{langCount(null)}}</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:16px;text-align:right">
+      <button class="btn-ghost" @click="showCoverage=false">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div v-if="toast" :class="'toast toast-'+(toast.type||'ok')" @click="toast=null">{{toast.msg}}</div>
+</div>
+
+<script>
+const BRANCHES = {"101":{"en":"Jeddah Main","ar":"جدة الرئيسي"},"102":{"en":"Al-Sharafeya","ar":"الشرفية"},"103":{"en":"Al-Kandara (Kilo 2)","ar":""},"104":{"en":"Makkah Main","ar":"مكة المكرمة"},"105":{"en":"Madina","ar":"المدينة المنورة"},"106":{"en":"Barahat Al-Gazaz","ar":"برحة القزاز"},"107":{"en":"Ohad","ar":"أحد - طريق الأمير محمد بن عبدالعزيز"},"108":{"en":"","ar":"مركز مبيعات المدينة"},"109":{"en":"Chamber of Commerce","ar":"الغرفة التجارية"},"110":{"en":"Hamdaniyah","ar":"الحمدانية"},"111":{"en":"Yanbu","ar":"ينبع"},"114":{"en":"Al-Awali Al-Madinah","ar":"العوالي - المدينة"},"115":{"en":"Quba","ar":"قباء"},"117":{"en":"Al Fayha","ar":"الفيحاء"},"119":{"en":"Al-Sitteen Street(Jed)","ar":"شارع الستين  - حي البواردي طريق الملك فهد"},"120":{"en":"Al-Mahjar Quarter","ar":""},"121":{"en":"Maabda","ar":"المعابدة"},"122":{"en":"Al-Sitteen Street(Makkah)","ar":"شارع الستين - مكة"},"123":{"en":"Yanbu Industrial Branch","ar":"ينبع الصناعية"},"124":{"en":"Shoubra","ar":"شبرا"},"125":{"en":"Madaa'in Al-Fahd (Kilo 5)","ar":""},"128":{"en":"Rabegh","ar":"رابغ"},"130":{"en":"Otaibiya","ar":"العتيبية"},"133":{"en":"Toraba","ar":"تربة"},"135":{"en":"Baghdadiya","ar":"البغدادية"},"136":{"en":"Palestine Street","ar":"شارع فلسطين"},"138":{"en":"Al-Hawiya","ar":"الحوية"},"139":{"en":"Al-Makaronah Street","ar":"شارع المكرونة"},"142":{"en":"King Faisal Naval Base","ar":"القاعدة البحرية"},"145":{"en":"Badre","ar":"بدر"},"147":{"en":"Al-Meena Road","ar":"طريق الميناء"},"148":{"en":"Prince Fahd Street","ar":"الأمير فهد"},"149":{"en":"Al-Salamah district","ar":"السلامة"},"150":{"en":"Al-Shohada District","ar":"الشهداء"},"151":{"en":"Industrial City (Jeddah)","ar":"المدينة الصناعية"},"152":{"en":"Al-Montazahat (Kilo 12)","ar":"المنتزهات"},"153":{"en":"Taiba (Jeddah)","ar":"طيبة - حي الصفا"},"155":{"en":"Private Banking (Jeddah)","ar":"المصرفية الخاصة - الغربية"},"157":{"en":"Al-Tahlia","ar":"التحلية"},"163":{"en":"Al-Azziziah-Makkah","ar":"العزيزية - مكة"},"165":{"en":"Al-Zahra District","ar":"شارع الأمير عبدالمجيد"},"167":{"en":"Sultana","ar":"سلطانة"},"168":{"en":"Aziziah (Al-Madinah)","ar":"العزيزية  - المدينة"},"169":{"en":"Al-Marwah","ar":"المروة"},"170":{"en":"Sarry","ar":"صاري"},"176":{"en":"Al-Azziziah-Jeddah","ar":"العزيزية  - جدة"},"178":{"en":"Hay Al-Awali","ar":"العوالي - مكة"},"179":{"en":"Makkah Industrial","ar":"الصناعية"},"180":{"en":"Ostad Al-Riyadi","ar":"الاستاد الرياضي"},"183":{"en":"Al-Mohammadiya","ar":"البساتين"},"184":{"en":"Al-Haramain Road","ar":"طريق الحرمين"},"185":{"en":"Prince Sultan Street","ar":"شارع الأمير سلطان"},"186":{"en":"Heraa Street","ar":"حراء"},"187":{"en":"Al-Russaifa","ar":"الرصيفة"},"188":{"en":"Al-Falah","ar":"الفلاح"},"189":{"en":"Al-Shara'e District","ar":"الشرائع"},"190":{"en":"Al-Basateen","ar":"المحمدية - طريق الملك"},"197":{"en":"Jeddah sales hub","ar":"مركز مبيعات السنابل"},"201":{"en":"Riyadh Main","ar":"الرياض الرئيسي"},"202":{"en":"Al-Malaz","ar":"جرير (الملز)"},"203":{"en":"Al-Batha","ar":"البطحاء"},"204":{"en":"Industrial Area","ar":"الصناعية الأولى"},"205":{"en":"Al-Kharj","ar":"الخرج"},"206":{"en":"Shaqra","ar":"شقراء"},"207":{"en":"Al-Solaimaniya","ar":"السليمانية"},"208":{"en":"Al-Worood","ar":"الورود"},"209":{"en":"Al-Olaya","ar":"العليا"},"210":{"en":"Al-Dabab Street","ar":"الدباب"},"211":{"en":"Al-Shmaisi","ar":"الشميسي"},"212":{"en":"Al-Amal Hospital","ar":"مستشفى الأمل"},"213":{"en":"King Fahd Road","ar":"طريق الملك فهد"},"214":{"en":"Nasiriya","ar":"الناصرية"},"215":{"en":"Al-Kharj Road","ar":"طريق الخرج"},"216":{"en":"Hafouf","ar":"الهفوف"},"217":{"en":"Al-Mubarraz","ar":"المبرز"},"218":{"en":"Qatif","ar":"القطيف"},"219":{"en":"Al-Ahsa","ar":"الأحساء"},"220":{"en":"Dammam Main","ar":"الدمام الرئيسي"},"221":{"en":"Unaizah","ar":"عنيزة"},"222":{"en":"Buriaidah Main","ar":"بريدة الرئيسي"},"223":{"en":"Ha'il","ar":"حائل"},"224":{"en":"Arar","ar":"عرعر"},"225":{"en":"Sakaka","ar":"سكاكا"},"226":{"en":"Majmaah","ar":"المجمعة"},"227":{"en":"King Faisal Hospital","ar":"مستشفى الملك فيصل"},"228":{"en":"Dawadmi","ar":"الدوادمي"},"229":{"en":"Zulfi","ar":"الزلفي"},"230":{"en":"Al-Rawdah","ar":"الروضة"},"231":{"en":"Ras Al-Khaimah","ar":"الرأس"},"232":{"en":"Al-Nazeem","ar":"النظيم"},"233":{"en":"Al-Murabba","ar":"المربع"},"234":{"en":"King Abdullah Road","ar":"طريق الملك عبدالله"},"235":{"en":"Exit-15","ar":"المخرج 15"},"236":{"en":"Al-Rayyan","ar":"الريان"},"237":{"en":"Al-Aqeeq","ar":"العقيق"},"238":{"en":"Al-Naseem East","ar":"النسيم الشرقي"},"239":{"en":"Al-Aziziyah","ar":"العزيزية  - الرياض"},"240":{"en":"Khashm Al-Aan","ar":"خشم العان"},"241":{"en":"Dirab","ar":"ديراب"},"242":{"en":"Al-Suwaidi","ar":"السويدي"},"243":{"en":"Tuwaiq","ar":"طويق"},"244":{"en":"Al-Oraija","ar":"العريجاء"},"245":{"en":"Al-Dar Al-Bayda","ar":"الدار البيضاء"},"246":{"en":"Al-Badiah","ar":"البديعة"},"247":{"en":"Al-Yamamah","ar":"اليمامة"},"248":{"en":"Al-Hamra","ar":"الحمراء"},"249":{"en":"Al-Shifa","ar":"الشفاء"},"250":{"en":"Al-Faisaliya","ar":"الفيصلية  - الرياض"},"251":{"en":"Prince Salman Road","ar":"طريق الأمير سلمان"},"252":{"en":"Al-Nakheel","ar":"النخيل"},"253":{"en":"Al-Sahafa","ar":"الصحافة"},"255":{"en":"Private Banking (Riyadh)","ar":"المصرفية الخاصة - الرياض"},"256":{"en":"Al-Ghadir","ar":"الغدير"},"257":{"en":"Al-Takhassusi","ar":"التخصصي"},"258":{"en":"Irqah","ar":"عرقة"},"259":{"en":"Al-Waha","ar":"الواحة"},"260":{"en":"Nozhah","ar":"النزهة"},"261":{"en":"Diplomatic Quarter","ar":"الحي الدبلوماسي"},"262":{"en":"Al Morooj","ar":"المروج"},"263":{"en":"Al-Yasmin","ar":"الياسمين"},"264":{"en":"Al-Narjis","ar":"النرجس"},"270":{"en":"Riyadh sales center","ar":"مركز المبيعات"},"298":{"en":"Al-Rimal","ar":"الرمال"},"299":{"en":"Al-Naseem West","ar":"النسيم الغربي"},"301":{"en":"Al-Khobar Main","ar":"الخبر الرئيسي"},"302":{"en":"Dhahran Main","ar":"الظهران"},"303":{"en":"Jubail","ar":"الجبيل"},"304":{"en":"Thuqbah","ar":"الثقبة"},"305":{"en":"Rahimah","ar":"رحيمة"},"306":{"en":"Industrial Jubail","ar":"الجبيل الصناعية"},"307":{"en":"Al-Khobar North","ar":"الخبر الشمالي"},"308":{"en":"Al-Jubail","ar":"الجبيل"},"309":{"en":"Safwa","ar":"صفوى"},"310":{"en":"Khafji","ar":"الخفجي"},"311":{"en":"Ras Tannura","ar":"رأس تنورة"},"312":{"en":"Nairyah","ar":"النعيرية"},"313":{"en":"Al-Rakah","ar":"الراكة"},"316":{"en":"Dammam West","ar":"الدمام الغربي"},"317":{"en":"King Fahd Jubail","ar":"الملك فهد - الجبيل"},"319":{"en":"Al-Aziziyah Dammam","ar":"العزيزية  - الدمام"},"321":{"en":"Taif Main","ar":"الطائف الرئيسي"},"322":{"en":"Al-Baha","ar":"الباحة"},"323":{"en":"Bisha","ar":"بيشة"},"326":{"en":"Al-Khubar Road (Dammam)","ar":"طريق الخبر"},"327":{"en":"Al-Murjan","ar":"المرجان"},"328":{"en":"Al-Doha","ar":"الدوحة"},"330":{"en":"Half Moon","ar":"نصف القمر"},"331":{"en":"Al-Firdaws (Dammam)","ar":"الفردوس"},"337":{"en":"Prince Talal Street","ar":"شارع الأمير طلال"},"340":{"en":"Qunfudha","ar":"القنفذة"},"341":{"en":"Ahad Rufaida","ar":"أحد رفيدة"},"401":{"en":"Abha","ar":"أبها"},"402":{"en":"Jizan","ar":"جيزان"},"403":{"en":"Najran","ar":"نجران"},"404":{"en":"Khamis Mushayt","ar":"خميس مشيط"},"405":{"en":"Taif","ar":"الطائف"},"406":{"en":"Baljurashi","ar":"بلجرشي"},"407":{"en":"Al-Qurrayat","ar":"القريات"},"408":{"en":"Skaka","ar":"سكاكا"},"409":{"en":"Tabuk","ar":"تبوك"},"410":{"en":"Al-Wajh","ar":"الوجه"},"411":{"en":"Tayma","ar":"تيماء"},"412":{"en":"Duba","ar":"ضبا"},"413":{"en":"Mahayel Asir","ar":"محايل عسير"},"414":{"en":"Al-Ola","ar":"العلا"},"500":{"en":"Abha Branch","ar":"أبها"},"501":{"en":"Jizan Branch","ar":"جيزان"},"502":{"en":"Najran Branch","ar":"نجران"},"503":{"en":"Khamis Mushayt Branch","ar":"خميس مشيط"},"504":{"en":"Taif Branch","ar":"الطائف"},"601":{"en":"Al-Ahsa","ar":"الأحساء"},"602":{"en":"Al-Mubarraz","ar":"المبرز"},"603":{"en":"Al-Qatif","ar":"القطيف"},"604":{"en":"Ras Tannura","ar":"رأس تنورة"},"605":{"en":"Jubail","ar":"الجبيل"},"606":{"en":"Dammam","ar":"الدمام"},"607":{"en":"Dhahran","ar":"الظهران"},"608":{"en":"Al-Khobar","ar":"الخبر"},"609":{"en":"Buraydah","ar":"بريدة"},"610":{"en":"Unaizah","ar":"عنيزة"},"611":{"en":"Buraydah","ar":"بريدة"},"612":{"en":"Ha'il","ar":"حائل"},"613":{"en":"Ha'il","ar":"حائل"},"614":{"en":"Tabuk","ar":"تبوك"},"615":{"en":"Arar","ar":"عرعر"},"616":{"en":"Sakaka","ar":"سكاكا"},"617":{"en":"Al-Qurayyat","ar":"القريات"}};
+
+const INTENTS = {"0":"Operator / 人工座席","1":"CSR / 客服","2":"Teller / 柜台","3":"Diamond / 钻石理财","4":"Golden / 黄金理财","5":"Corporate / 企业银行","6":"Riyadh Capital / 利雅得资本","7":"Manager / 经理"};
+const CATEGORIES = ["HappyPath","MissingSlots","Ambiguity","NoiseFallback","NegationCorrection","AdversarialParams"];
+
+const {createApp,ref,reactive,computed,watch,onMounted,nextTick} = Vue;
+
+createApp({
+setup(){
+  const testCases = ref([]);
+  const selected = ref(null);
+  const searchQ = ref('');
+  const filterCat = ref('');
+  const filterLang = ref('');
+  const branchSearch = ref('');
+  const branchDropOpen = ref(false);
+  const listRef = ref(null);
+  const showSettings = ref(false);
+  const showCoverage = ref(false);
+  const toast = ref(null);
+  const translations = reactive({});
+  const translating = reactive({});
+  const regenerating = reactive({});
+
+  const settings = reactive({
+    model: 'qwen/qwen3.5-122b-a10b',
+    batchSize: 3
+  });
+
+  // Load from localStorage
+  onMounted(()=>{
+    try{
+      const s = localStorage.getItem('ivr_annotation_settings');
+      if(s) Object.assign(settings, JSON.parse(s));
+      const d = localStorage.getItem('ivr_annotation_data');
+      if(d) testCases.value = JSON.parse(d);
+      const t = localStorage.getItem('ivr_translations');
+      if(t) Object.assign(translations, JSON.parse(t));
+    }catch(e){console.error(e)}
+    document.addEventListener('click',e=>{
+      if(!e.target.closest('.search-wrap')) branchDropOpen.value=false;
+    });
+    document.addEventListener('keydown',e=>{
+      if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.target.isContentEditable) return;
+      const list = filteredCases.value;
+      if(!list.length) return;
+      const curIdx = selected.value ? list.findIndex(t=>t.test_id===selected.value.test_id) : -1;
+      if(e.key==='ArrowDown'||e.key==='j'){
+        e.preventDefault();
+        const next = Math.min(curIdx+1, list.length-1);
+        selectCase(list[next]);
+        scrollToItem(list[next].test_id);
+      } else if(e.key==='ArrowUp'||e.key==='k'){
+        e.preventDefault();
+        const prev = Math.max(curIdx-1, 0);
+        selectCase(list[prev]);
+        scrollToItem(list[prev].test_id);
+      }
+    });
+  });
+
+  // Auto save
+  watch(testCases,()=>{localStorage.setItem('ivr_annotation_data',JSON.stringify(testCases.value))},{deep:true});
+
+  const selectedParams = computed(()=>{
+    if(!selected.value) return {};
+    if(!selected.value.expected_behavior.parameters) selected.value.expected_behavior.parameters={language:'English',branch_id:'0',intent_id:'0'};
+    return selected.value.expected_behavior.parameters;
+  });
+
+  function caseLanguage(tc){
+    return tc.expected_behavior?.parameters?.language || tc.context?.language || '';
+  }
+
+  const filteredCases = computed(()=>{
+    return testCases.value.filter(tc=>{
+      if(filterCat.value && tc.category!==filterCat.value) return false;
+      const lang = caseLanguage(tc);
+      if(filterLang.value && lang!==filterLang.value) return false;
+      if(searchQ.value){
+        const q = searchQ.value.toLowerCase();
+        const conv = tc.conversation?.map(m=>m.content).join(' ')||'';
+        if(!tc.test_id.toLowerCase().includes(q) && !conv.toLowerCase().includes(q) && !(tc.description||'').toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  });
+
+  const filteredBranches = computed(()=>{
+    const q = branchSearch.value.toLowerCase();
+    return Object.entries(BRANCHES).map(([code,info])=>({code,...info})).filter(b=>{
+      if(!q) return true;
+      return b.code.includes(q) || (b.en||'').toLowerCase().includes(q) || (b.ar||'').includes(branchSearch.value);
+    }).slice(0,30);
+  });
+
+  const coveredBranches = computed(()=>{
+    const s = new Set();
+    testCases.value.forEach(tc=>{
+      const bid = tc.expected_behavior?.parameters?.branch_id;
+      if(bid && bid!=='0') s.add(String(bid));
+    });
+    return s;
+  });
+
+  function catClass(c){return{HappyPath:'hp',MissingSlots:'ms',Ambiguity:'am',NoiseFallback:'nf',NegationCorrection:'nc',AdversarialParams:'ap'}[c]||'hp'}
+  function branchLabel(id){const b=BRANCHES[id];return b?`${id}: ${b.en} / ${b.ar}`:id}
+  function isArabic(t){return /[\u0600-\u06ff]/.test(t)}
+  function catCount(c){return testCases.value.filter(t=>t.category===c).length}
+  function intentCount(id){return testCases.value.filter(t=>t.expected_behavior?.parameters?.intent_id===id).length}
+  function langCount(l){
+    if(l===null) return testCases.value.filter(t=>!t.expected_behavior?.parameters?.language && !t.context?.language).length;
+    return testCases.value.filter(t=>(t.expected_behavior?.parameters?.language||t.context?.language)===l).length;
+  }
+
+  function selectCase(tc){selected.value=tc;branchSearch.value=''}
+  function scrollToItem(tid){nextTick(()=>{
+    const container=listRef.value;if(!container)return;
+    const items=container.querySelectorAll('[data-tid]');
+    const el=Array.from(items).find(node=>node.getAttribute('data-tid')===String(tid));
+    if(!el)return;
+    const ct=container.getBoundingClientRect(),et=el.getBoundingClientRect();
+    if(et.top<ct.top) container.scrollTop+=et.top-ct.top-4;
+    else if(et.bottom>ct.bottom) container.scrollTop+=et.bottom-ct.bottom+4;
+  })}
+  function pickBranch(code){selectedParams.value.branch_id=code;branchSearch.value='';branchDropOpen.value=false}
+
+  function msgKey(tc,idx){return `${tc.test_id}__${idx}__${tc.conversation[idx]?.content?.slice(0,20)||''}`}
+  function getTranslation(idx,tc=selected.value){if(!tc)return'';return translations[msgKey(tc,idx)]||''}
+  function setTranslation(idx,text,tc=selected.value){if(!tc)return;translations[msgKey(tc,idx)]=text;localStorage.setItem('ivr_translations',JSON.stringify(translations))}
+
+  function showToast(msg,type='ok'){toast.value={msg,type};setTimeout(()=>toast.value=null,3000)}
+
+  async function callLLM(systemPrompt, userMsg){
+    try{
+      const r = await fetch('/api/chat',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:settings.model,messages:[{role:'system',content:systemPrompt},{role:'user',content:userMsg}],max_tokens:500})
+      });
+      const d = await r.json();
+      if(d.error){showToast(d.error.message||'API 错误','err');return null}
+      let text = d.choices?.[0]?.message?.content?.trim()||null;
+      // Strip <think>...</think> blocks from reasoning models
+      if(text) text = text.replace(/<think>[\s\S]*?<\/think>/g,'').trim();
+      return text;
+    }catch(e){showToast('网络错误: '+e.message,'err');return null}
+  }
+
+  async function translateAll(){
+    const tc = selected.value;
+    if(!tc)return;
+    const msgs = tc.conversation;
+    const queue = [];
+    for(let i=0; i<msgs.length; i++){
+      if(!getTranslation(i,tc)) queue.push(i);
+    }
+    if(queue.length === 0){
+      showToast('当前无未翻译的文本');
+      return;
+    }
+    showToast(`开始翻译 ${queue.length} 条消息...`);
+    let successCount = 0;
+    let failCount = 0;
+    for(let i=0; i<queue.length; i+=settings.batchSize||3){
+      const batch = queue.slice(i, i+(settings.batchSize||3));
+      const results = await Promise.all(batch.map(idx => translateMsg(idx,tc)));
+      results.forEach(res => res ? successCount++ : failCount++);
+      if(failCount > 0) break; // 若有哪怕一条出错（网络错误/API错误），则立刻中止后续批次
+    }
+    if(failCount > 0){
+      showToast(`部分翻译中断：成功 ${successCount} 条，失败。请检查网络。`, 'err');
+    } else {
+      showToast(`全篇翻译完成！成功处理 ${successCount} 条。`);
+    }
+  }
+
+  async function translateMsg(idx,tc=selected.value){
+    if(!tc || !tc.conversation?.[idx])return false;
+    translating[idx]=true;
+    const text = tc.conversation[idx].content;
+    const result = await callLLM(
+      '将以下文本翻译为简体中文。只输出翻译结果，不要任何解释或额外文字。',
+      text
+    );
+    translating[idx]=false;
+    if(result) {
+      setTranslation(idx,result,tc);
+      return true;
+    }
+    return false;
+  }
+
+  async function regenerateMsg(idx,tc=selected.value){
+    if(!tc || !tc.conversation?.[idx])return;
+    regenerating[idx]=true;
+    const zhText = getTranslation(idx,tc);
+    const lang = tc.context?.language || tc.expected_behavior?.parameters?.language || 'English';
+    const result = await callLLM(
+      `根据以下中文描述，生成一句自然的${lang==='Arabic'?'阿拉伯语':'英语'}口语表达，模拟银行客户在IVR电话中会说的话。只输出生成的${lang==='Arabic'?'阿拉伯语':'英语'}文本，不要任何解释。`,
+      zhText
+    );
+    if(result && tc.conversation?.[idx]){
+      tc.conversation[idx].content = result;
+      showToast('原文已重新生成');
+    }
+    regenerating[idx]=false;
+  }
+
+  function addMsg(role){
+    if(!selected.value)return;
+    selected.value.conversation.push({role,content:''});
+  }
+  function removeMsg(idx){
+    if(!selected.value||selected.value.conversation.length<=1)return;
+    selected.value.conversation.splice(idx,1);
+  }
+
+  function saveCase(){
+    if(!selected.value)return;
+    const idx=testCases.value.findIndex(t=>t===selected.value);
+    if(idx>=0){testCases.value[idx]=selected.value}
+    showToast('已保存');
+  }
+
+  function deleteCase(){
+    if(!selected.value||!confirm('确定删除此用例？'))return;
+    const idx=testCases.value.findIndex(t=>t.test_id===selected.value.test_id);
+    if(idx>=0)testCases.value.splice(idx,1);
+    selected.value=null;
+    showToast('已删除');
+  }
+
+  function newCase(){
+    const id = `TC_NEW_${String(testCases.value.length+1).padStart(3,'0')}`;
+    const tc = {
+      test_id:id, category:'HappyPath', description:'',
+      context:{language:'English',simulated_asr_confidence:0.95},
+      conversation:[{role:'user',content:''}],
+      expected_behavior:{action:'call_tool:transfer_call',parameters:{language:'English',branch_id:'0',intent_id:'0'}},
+      eval_metrics:{must_trigger_action:'call_tool:transfer_call',exact_match_params:['language','branch_id','intent_id']}
+    };
+    testCases.value.push(tc);
+    selected.value=tc;
+    showToast('新用例已创建');
+  }
+
+  function parseImportedCases(rawText){
+    const text = String(rawText||'').trim();
+    if(!text) return [];
+    try{
+      const parsed = JSON.parse(text);
+      if(Array.isArray(parsed)) return parsed;
+      if(parsed && typeof parsed === 'object') return [parsed];
+      throw new Error('JSON 内容必须是对象或数组');
+    }catch(_jsonErr){
+      const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      if(!lines.length) return [];
+      try{
+        return lines.map(l=>JSON.parse(l));
+      }catch(jsonlErr){
+        throw new Error('文件不是有效的 JSON 或 JSONL: '+jsonlErr.message);
+      }
+    }
+  }
+
+  function importFile(e){
+    const file = e.target.files[0];
+    if(!file)return;
+    const prevSelectedId = selected.value?.test_id;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      try{
+        const cases = parseImportedCases(ev.target.result);
+        testCases.value = cases;
+        if(!cases.length){
+          selected.value = null;
+        }else{
+          selected.value = cases.find(tc=>tc.test_id===prevSelectedId) || cases[0];
+        }
+        showToast(`已导入 ${cases.length} 条用例`);
+      }catch(err){showToast('导入失败: '+err.message,'err')}
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  }
+
+  function exportJsonl(){
+    const content = testCases.value.map(tc=>JSON.stringify(tc)).join('\n');
+    downloadFile(content,'agent_regression_tests.jsonl','application/json');
+    showToast(`已导出 ${testCases.value.length} 条`);
+  }
+
+  async function exportJson(){
+    const content = JSON.stringify(testCases.value, null, 2);
+    try {
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: 'agent_regression_tests.json',
+          types: [{ description: 'JSON 文件', accept: {'application/json': ['.json']} }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        showToast('JSON 已成功导出到指定文件夹');
+      } else {
+        downloadFile(content,'agent_regression_tests.json','application/json');
+        showToast(`已导出 ${testCases.value.length} 条 (JSON)`);
+      }
+    } catch(err) {
+      if(err.name !== 'AbortError') showToast('导出 JSON 失败: ' + err.message, 'err');
+    }
+  }
+
+  function exportMarkdown(){
+    const grouped = {};
+    testCases.value.forEach(tc=>{
+      if(!grouped[tc.category])grouped[tc.category]=[];
+      grouped[tc.category].push(tc);
+    });
+    let md = '# Riyadh Bank IVR 测试用例集\n\n';
+    md += `> 共 ${testCases.value.length} 条用例，生成时间: ${new Date().toLocaleString()}\n\n---\n\n`;
+    for(const [cat,cases] of Object.entries(grouped)){
+      md += `## ${cat}\n\n`;
+      for(const tc of cases){
+        const p = tc.expected_behavior?.parameters||{};
+        const bInfo = BRANCHES[p.branch_id];
+        const bLabel = bInfo ? `${p.branch_id} (${bInfo.en} / ${bInfo.ar})` : (p.branch_id||'N/A');
+        const iLabel = INTENTS[p.intent_id] || p.intent_id || 'N/A';
+        md += `### ${tc.test_id} — ${tc.description||''}\n\n`;
+        if(tc.expected_behavior?.action==='call_tool:transfer_call'){
+          md += `**Language**: ${p.language||'?'} | **Branch**: ${bLabel} | **Intent**: ${p.intent_id} (${iLabel})\n\n`;
+        }
+        for(const msg of tc.conversation){
+          const icon = msg.role==='user'?'👤 Customer':'🤖 Agent';
+          md += `> ${icon}: ${msg.content}\n`;
+          const key = msgKey(tc, tc.conversation.indexOf(msg));
+          const zh = translations[key];
+          if(zh) md += `> (中文: ${zh})\n`;
+          md += `\n`;
+        }
+        if(tc.expected_behavior?.action==='call_tool:transfer_call'){
+          md += `✅ Expected: \`transfer_call(language="${p.language}", branch_id="${p.branch_id}", intent_id="${p.intent_id}")\`\n\n`;
+        } else {
+          md += `📋 Expected: \`${tc.expected_behavior?.action||'?'}\`\n\n`;
+        }
+        md += '---\n\n';
+      }
+    }
+    downloadFile(md,'test_scripts.md','text/markdown');
+    showToast('Markdown 已导出');
+  }
+
+  function downloadFile(content,name,type){
+    const blob = new Blob([content],{type:type+';charset=utf-8'});
+    const a = document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=name;a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function saveSettings(){
+    localStorage.setItem('ivr_annotation_settings',JSON.stringify(settings));
+    showSettings.value=false;
+    showToast('设置已保存');
+  }
+
+  return {
+    testCases,selected,searchQ,filterCat,filterLang,branchSearch,branchDropOpen,listRef,
+    showSettings,showCoverage,toast,settings,translations,translating,regenerating,
+    selectedParams,filteredCases,filteredBranches,coveredBranches,
+    BRANCHES,INTENTS,CATEGORIES,
+    catClass,branchLabel,isArabic,catCount,intentCount,langCount,caseLanguage,
+    selectCase,scrollToItem,pickBranch,getTranslation,setTranslation,
+    translateMsg,regenerateMsg,translateAll,addMsg,removeMsg,
+    saveCase,deleteCase,newCase,importFile,exportJsonl,exportJson,exportMarkdown,saveSettings,showToast
+  };
+}
+}).mount('#app');
+</script>
+</body>
+</html>
