@@ -121,13 +121,13 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
         <span style="font-size:12px;color:var(--text2)">Expected Behavior:</span>
-        <select v-model="selected.expected_behavior.action" style="font-size:12px">
+        <select v-model="selected.expected_behavior.action" v-if="selected.expected_behavior" style="font-size:12px">
           <option value="call_tool:transfer_call">call_tool:transfer_call</option>
           <option value="reply_text">reply_text</option>
           <option value="fallback_dtmf">fallback_dtmf</option>
           <option value="reply_text:ask_clarification_or_dtmf">reply_text:ask_clarification_or_dtmf</option>
         </select>
-        <template v-if="selected.expected_behavior.action==='call_tool:transfer_call'">
+        <template v-if="selected.expected_behavior?.action==='call_tool:transfer_call'">
           <select v-model="selectedParams.language" style="width:90px;font-size:12px">
             <option value="English">English</option><option value="Arabic">Arabic</option>
           </select>
@@ -145,7 +145,7 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
             <option v-for="(name,id) in INTENTS" :key="id" :value="id">{{id}}: {{name}}</option>
           </select>
         </template>
-        <span v-if="selected.expected_behavior.action==='call_tool:transfer_call'" class="action-tag action-tool">
+        <span v-if="selected.expected_behavior?.action==='call_tool:transfer_call'" class="action-tag action-tool">
           ✅ transfer({{selectedParams.language}}, {{selectedParams.branch_id}}, {{selectedParams.intent_id}})
         </span>
         <span v-else-if="selected.expected_behavior.action?.includes('reply_text')" class="action-tag action-text">💬 reply_text</span>
@@ -200,6 +200,14 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
   <div class="modal" style="max-width:480px">
     <h3 style="margin-bottom:16px">⚙️ Settings</h3>
     <div style="margin-bottom:12px">
+      <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">API Base URL</label>
+      <input v-model="settings.apiBase" style="width:100%" placeholder="https://integrate.api.nvidia.com/v1/chat/completions">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">API Key</label>
+      <input v-model="settings.apiKey" type="password" style="width:100%" placeholder="nvapi-...">
+    </div>
+    <div style="margin-bottom:12px">
       <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">Translation Model</label>
       <input v-model="settings.model" style="width:100%" placeholder="qwen/qwen3.5-122b-a10b">
     </div>
@@ -229,9 +237,9 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
         <details>
           <summary style="cursor:pointer;font-size:12px;color:var(--text2)">Uncovered branches ({{Object.keys(BRANCHES).length - coveredBranches.size}})</summary>
           <div style="max-height:150px;overflow-y:auto;margin-top:8px;font-size:12px;columns:3;column-gap:12px">
-            <div v-for="(info,code) in BRANCHES" :key="code" v-if="!coveredBranches.has(code)" style="margin-bottom:2px">
+            <template v-for="(info,code) in BRANCHES" :key="code"><div v-if="!coveredBranches.has(code)" style="margin-bottom:2px">
               <span style="font-family:'JetBrains Mono';color:var(--cyan)">{{code}}</span> {{info.en||info.ar}}
-            </div>
+            </div></template>
           </div>
         </details>
       </div>
@@ -317,6 +325,8 @@ setup(){
   const regenerating = reactive({});
 
   const settings = reactive({
+    apiBase: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    apiKey: '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',
     model: 'qwen/qwen3.5-122b-a10b',
     batchSize: 3
   });
@@ -335,6 +345,7 @@ setup(){
       if(!e.target.closest('.search-wrap')) branchDropOpen.value=false;
     });
     document.addEventListener('keydown',e=>{
+      if(!isAuthenticated.value) return;
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.target.isContentEditable) return;
       const list = filteredCases.value;
       if(!list.length) return;
@@ -358,8 +369,10 @@ setup(){
 
   const selectedParams = computed(()=>{
     if(!selected.value) return {};
-    if(!selected.value.expected_behavior.parameters) selected.value.expected_behavior.parameters={language:'English',branch_id:'0',intent_id:'0'};
-    return selected.value.expected_behavior.parameters;
+    const eb = selected.value.expected_behavior;
+    if(!eb) return {};
+    if(!eb.parameters) eb.parameters={language:'English',branch_id:'0',intent_id:'0'};
+    return eb.parameters;
   });
 
   function caseLanguage(tc){
@@ -419,17 +432,18 @@ setup(){
   })}
   function pickBranch(code){selectedParams.value.branch_id=code;branchSearch.value='';branchDropOpen.value=false}
 
-  function msgKey(tc,idx){return `${tc.test_id}__${idx}__${tc.conversation[idx]?.content?.slice(0,20)||''}`}
+  function msgKey(tc,idx){return `${tc.test_id}__${idx}`}
   function getTranslation(idx,tc=selected.value){if(!tc)return'';return translations[msgKey(tc,idx)]||''}
   function setTranslation(idx,text,tc=selected.value){if(!tc)return;translations[msgKey(tc,idx)]=text;localStorage.setItem('ivr_translations',JSON.stringify(translations))}
 
   function showToast(msg,type='ok'){toast.value={msg,type};setTimeout(()=>toast.value=null,3000)}
 
   async function callLLM(systemPrompt, userMsg){
+    if(!settings.apiKey){showToast('Please configure API Key in settings','err');return null}
     try{
-      const r = await fetch('/api/chat',{
+      const r = await fetch(settings.apiBase,{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Authorization':`Bearer ${settings.apiKey}`,'Content-Type':'application/json'},
         body:JSON.stringify({model:settings.model,messages:[{role:'system',content:systemPrompt},{role:'user',content:userMsg}],max_tokens:500})
       });
       const d = await r.json();
@@ -504,6 +518,10 @@ setup(){
   function addMsg(role){
     if(!selected.value)return;
     selected.value.conversation.push({role,content:''});
+    nextTick(()=>{
+      const bubbles=document.querySelectorAll('.bubble .original');
+      if(bubbles.length) bubbles[bubbles.length-1].focus();
+    });
   }
   function removeMsg(idx){
     if(!selected.value||selected.value.conversation.length<=1)return;
@@ -512,8 +530,20 @@ setup(){
 
   function saveCase(){
     if(!selected.value)return;
-    const idx=testCases.value.findIndex(t=>t===selected.value);
-    if(idx>=0){testCases.value[idx]=selected.value}
+    // Validate
+    const tc = selected.value;
+    if(!tc.test_id?.trim()){showToast('test_id cannot be empty','err');return}
+    if(tc.conversation.length===0){showToast('Must have at least 1 message','err');return}
+    const action = tc.expected_behavior?.action;
+    if(action==='call_tool:transfer_call'){
+      const p = tc.expected_behavior?.parameters||{};
+      if(!p.language){showToast('Language is required','err');return}
+      if(p.branch_id && p.branch_id!=='0' && !BRANCHES[p.branch_id]){showToast(`branch_id ${p.branch_id} not in registry`,'err');return}
+      const iid = parseInt(p.intent_id);
+      if(isNaN(iid)||iid<0||iid>7){showToast('intent_id must be 0-7','err');return}
+    }
+    // Force reactivity trigger
+    localStorage.setItem('ivr_annotation_data',JSON.stringify(testCases.value));
     showToast('Saved successfully');
   }
 
@@ -526,7 +556,8 @@ setup(){
   }
 
   function newCase(){
-    const id = `TC_NEW_${String(testCases.value.length+1).padStart(3,'0')}`;
+    const seq = Date.now().toString(36).slice(-5).toUpperCase();
+    const id = `TC_NEW_${seq}`;
     const tc = {
       test_id:id, category:'HappyPath', description:'',
       context:{language:'English',simulated_asr_confidence:0.95},
@@ -566,13 +597,16 @@ setup(){
     reader.onload = ev=>{
       try{
         const cases = parseImportedCases(ev.target.result);
+        // Clear stale translations to prevent cross-contamination
+        Object.keys(translations).forEach(k => delete translations[k]);
+        localStorage.removeItem('ivr_translations');
         testCases.value = cases;
         if(!cases.length){
           selected.value = null;
         }else{
           selected.value = cases.find(tc=>tc.test_id===prevSelectedId) || cases[0];
         }
-        showToast(`Imported ${cases.length} cases`);
+        showToast(`Imported ${cases.length} cases (translations cleared)`);
       }catch(err){showToast('Import failed: '+err.message,'err')}
     };
     reader.readAsText(file);
@@ -655,7 +689,7 @@ setup(){
   function saveSettings(){
     localStorage.setItem('ivr_annotation_settings',JSON.stringify(settings));
     showSettings.value=false;
-    showToast('设置Saved successfully');
+    showToast('Settings saved');
   }
 
   return {
