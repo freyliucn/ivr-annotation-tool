@@ -163,7 +163,7 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
           <div class="original editable" contenteditable="true" :dir="isArabic(msg.content)?'rtl':'ltr'"
             @blur="msg.content=$event.target.innerText" v-text="msg.content"></div>
           <div class="en-trans editable" contenteditable="true" @blur="setTranslation(idx,$event.target.innerText)"
-            v-text="getTranslation(idx)||'(Click 'Translate' to generate translation)'"></div>
+            v-text="getTranslation(idx)||'(Click Translate to generate)'"></div>
         </div>
       </div>
       <div style="text-align:center;margin-top:8px">
