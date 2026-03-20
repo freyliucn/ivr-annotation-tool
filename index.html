@@ -48,6 +48,15 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
 </head>
 <body>
 <div id="app" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+<div v-if="!isAuthenticated" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:var(--bg)">
+  <div style="background:var(--card);padding:40px;border-radius:12px;border:1px solid var(--border);text-align:center;width:320px;box-shadow:0 10px 30px rgba(0,0,0,0.5)">
+    <h2 style="color:var(--cyan);margin-bottom:20px;font-family:'JetBrains Mono',monospace">Login Required</h2>
+    <input type="password" v-model="passwordInput" @keyup.enter="login" placeholder="Enter password..." style="width:100%;margin-bottom:16px;padding:10px;font-size:14px;text-align:center">
+    <button class="btn-primary" @click="login" style="width:100%;padding:10px;font-size:14px">Enter Platform</button>
+    <div v-if="passwordError" style="color:var(--red);font-size:13px;margin-top:12px;font-weight:500">{{passwordError}}</div>
+  </div>
+</div>
+<template v-else>
 <!-- HEADER -->
 <header style="background:var(--card);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0">
   <div style="font-size:16px;font-weight:700;color:var(--cyan)">🏦 Riyadh Bank IVR Annotation Platform</div>
@@ -264,6 +273,7 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:
 
 <!-- TOAST -->
 <div v-if="toast" :class="'toast toast-'+(toast.type||'ok')" @click="toast=null">{{toast.msg}}</div>
+</template>
 </div>
 
 <script>
@@ -276,6 +286,21 @@ const {createApp,ref,reactive,computed,watch,onMounted,nextTick} = Vue;
 
 createApp({
 setup(){
+  const isAuthenticated = ref(localStorage.getItem('auth_passed') === 'true');
+  const passwordInput = ref('');
+  const passwordError = ref('');
+  
+  const login = () => {
+    if (passwordInput.value === 'riyadh12345') {
+      isAuthenticated.value = true;
+      localStorage.setItem('auth_passed', 'true');
+      passwordError.value = '';
+    } else {
+      passwordError.value = 'Incorrect password';
+      passwordInput.value = '';
+    }
+  };
+
   const testCases = ref([]);
   const selected = ref(null);
   const searchQ = ref('');
@@ -634,6 +659,7 @@ setup(){
   }
 
   return {
+    isAuthenticated,passwordInput,passwordError,login,
     testCases,selected,searchQ,filterCat,filterLang,branchSearch,branchDropOpen,listRef,
     showSettings,showCoverage,toast,settings,translations,translating,regenerating,
     selectedParams,filteredCases,filteredBranches,coveredBranches,
